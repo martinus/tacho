@@ -9,3 +9,11 @@ This is mostly inspired by [hyperfine](https://github.com/sharkdp/hyperfine). So
 * Math: lognormal distribution? show plenty of math information
 * colors!
 * Just call `perf stat -x ';' -I 500` to get exact data, update whenever we have new data?
+
+
+## Python Stuff
+
+I'm a python noob, some things that I shouldn't forget:
+
+* `poetry run tacho`
+* `poetry run pytest`

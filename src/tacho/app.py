@@ -5,8 +5,10 @@ tacho - Tachometer for your apps
 
 """
 
-__version_info__ = ('0', '1', '0')
-__version__ = '.'.join(__version_info__)
+
+def main():
+    print("Hello, world! this is tacho.")
+
 
 if __name__ == '__main__':
-    print("Hello, world! this is tacho.")
+    main()
