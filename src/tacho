@@ -10,29 +10,128 @@ __version__ = '.'.join(__version_info__)
 
 
 import argparse
+from dataclasses import dataclass
+import statistics
+import subprocess
 import sys
+import tempfile
+from time import time
 
 
-def make_parser():
+def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-w', '--warmup', type=int, default=0,
-                        help="Before measuring run the command WARMUP times. This is useful to e.g. fill caches. (default=%(default)s)")
-    parser.add_argument('-r', '--runs', type=int,
-                        help='Exact number of evaluations to perform.')
-    parser.add_argument('-m', '--min-runs', type=int, default=10,
-                        help="Minimum number of runs (default=%(default)s)")
-    parser.add_argument('-M', '--max-runs', type=int, default=sys.maxsize,
-                        help='Maximum number of runs (default is unlimited)')
+
+    runs = parser.add_argument_group("number of runs")
+    runs.add_argument('-w', '--warmup', type=int, default=0,
+                      help="Before measuring run the command WARMUP times. This is useful to e.g. fill caches. (default=%(default)s)")
+    runs.add_argument('-r', '--runs', type=int,
+                      help='Exact number of evaluations to perform. Without this option, tacho determines the number of runs automatically.')
+    runs.add_argument('-m', '--min-runs', type=int, default=10,
+                      help="Minimum number of runs (default=%(default)s)")
+    runs.add_argument('-M', '--max-runs', type=int, default=sys.maxsize,
+                      help='Maximum number of runs (default is unlimited)')
+    runs.add_argument('-t', '--total-seconds', type=float, default=3.0,
+                      help="Total target time in seconds. (default=%(default)s)")
+
     parser.add_argument('-v', '--version', action='version',
                         version='%(prog)s ' + __version__)
     parser.add_argument('command', nargs=argparse.REMAINDER,
                         help='Any command you can specify in a shell.')
-    return parser
+
+    measurements = parser.add_argument_group("events")
+    measurements.add_argument('-e', '--event', type=str, default='duration_time,context-switches,cpu-migrations,page-faults,cycles,branches,instructions',
+                              help='The performance monitoring unit (PMU) to select. This argument is directly passed to "perf stat". See "perf list" for a list of all events. (default=%(default)s)')
+
+    # parse args - show help & fail for no arguments
+    if len(sys.argv) == 1:
+        parser.error("no command provided")
+    return parser.parse_args()
+
+
+@dataclass
+class Measurement:
+    name: str
+    values: list[float]
+    unit: str = "count"
+
+
+def parse_perf_stat_csv(text: str, sep=',') -> map:
+    """
+    Parses 'perf stat -x' output.
+    According to "man perf stat", the fileds are:
+    0: counter value
+    1: unit of the counter value or empty
+    2: event name
+    4: run time of counter
+    """
+    measurements = []
+    for line in text.splitlines():
+        if (len(line) < 3 or line[0] == '#'):
+            continue
+        l = line.split(sep)
+
+        m = Measurement(
+            name=l[2],
+            values=[float(l[0])],
+            unit="count" if len(l[1]) == 0 else l[1])
+
+        # we want standard units, so recalculate nanoseconds
+        if m.unit == "ns":
+            m.unit = "s"
+            m.values[0] /= 1e9
+        measurements.append(m)
+    return measurements
+
+
+def run_perf(events: str, command: list[str], tmpfile) -> list[Measurement]:
+    """
+    Runs 'perf stat' once and gathers measurement data, returns a list of measurements
+    """
+    # I use a huge interval time (1 year). That way we get only a single printout,
+    # and that printout contains the total runtime.
+    cmd = ["perf", "stat", "-o", tmpfile.name,
+           "-x", ",", "-e", events] + command
+
+    # run program, hiding all output so it doesn't interfere with our progress bar output
+    tmpfile.truncate(0)
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    tmpfile.seek(0)
+    return parse_perf_stat_csv(tmpfile.read())
+
+
+def integrate_measures(totals: list[Measurement], new_run: list[Measurement]):
+    for t, n in zip(totals, new_run):
+        t.values += n.values
+
+
+def measure(args):
+    tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
+
+    for w in range(args.warmup):
+        run_perf(args.event, args.command, tmpfile)
+    # first run to determine how long it takes
+    time_before = time()
+    measures = run_perf(args.event, args.command, tmpfile)
+    measured_runtime = time() - time_before
+
+    num_runs = int(args.total_seconds / measured_runtime)
+    num_runs = min(args.max_runs, num_runs)
+    # -1 because we already did a run
+    num_runs = max(args.min_runs - 1, num_runs)
+    print(num_runs)
+    for r in range(num_runs):
+        integrate_measures(measures,
+                           run_perf(args.event, args.command, tmpfile))
+
+    for m in measures:
+        print(
+            f"{statistics.mean(m.values)} +- {statistics.pstdev(m.values)} {m.unit} {m.name}")
 
 
 def main():
-    args = make_parser().parse_args()
-    print(args)
+    args = parse_args()
+    measure(args)
 
 
 if __name__ == '__main__':
