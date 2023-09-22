@@ -5,9 +5,34 @@ tacho - Tachometer for your apps
 
 """
 
+__version_info__ = ('0', '1', '0')
+__version__ = '.'.join(__version_info__)
+
+
+import argparse
+import sys
+
+
+def make_parser():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-w', '--warmup', type=int, default=0,
+                        help="Before measuring run the command WARMUP times. This is useful to e.g. fill caches. (default=%(default)s)")
+    parser.add_argument('-r', '--runs', type=int,
+                        help='Exact number of evaluations to perform.')
+    parser.add_argument('-m', '--min-runs', type=int, default=10,
+                        help="Minimum number of runs (default=%(default)s)")
+    parser.add_argument('-M', '--max-runs', type=int, default=sys.maxsize,
+                        help='Maximum number of runs (default is unlimited)')
+    parser.add_argument('-v', '--version', action='version',
+                        version='%(prog)s ' + __version__)
+    parser.add_argument('command', nargs=argparse.REMAINDER,
+                        help='Any command you can specify in a shell.')
+    return parser
+
 
 def main():
-    print("Hello, world! this is tacho.")
+    args = make_parser().parse_args()
+    print(args)
 
 
 if __name__ == '__main__':
