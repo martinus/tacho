@@ -105,6 +105,10 @@ def integrate_measures(totals: list[Measurement], new_run: list[Measurement]):
         t.values += n.values
 
 
+def clamp(value, lo, hi):
+    return max(lo, min(value, hi))
+
+
 def measure(args):
     tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
 
@@ -115,10 +119,9 @@ def measure(args):
     measures = run_perf(args.event, args.command, tmpfile)
     measured_runtime = time() - time_before
 
-    num_runs = int(args.total_seconds / measured_runtime)
-    num_runs = min(args.max_runs, num_runs)
-    # -1 because we already did a run
-    num_runs = max(args.min_runs - 1, num_runs)
+    num_runs = clamp(int(args.total_seconds / measured_runtime),
+                     args.min_runs - 1,  # we already did a run
+                     args.max_runs)
     print(num_runs)
     for r in range(num_runs):
         integrate_measures(measures,
@@ -126,7 +129,7 @@ def measure(args):
 
     for m in measures:
         print(
-            f"{statistics.mean(m.values)} +- {statistics.pstdev(m.values)} {m.unit} {m.name}")
+            f"{statistics.mean(m.values)} +- {statistics.stdev(m.values)} {m.unit} {m.name}")
 
 
 def main():
