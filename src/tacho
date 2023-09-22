@@ -15,7 +15,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
-from time import time
+import time
 
 
 def parse_args():
@@ -132,8 +132,51 @@ def measure(args):
             f"{statistics.mean(m.values)} +- {statistics.stdev(m.values)} {m.unit} {m.name}")
 
 
+class Cli:
+    CLEAR_LINE = "\033[K"
+    CURSOR_BACK = "\r"
+    CURSOR_HIDE = "\033[?25l"
+    CURSOR_SHOW = "\033[?25h"
+    SPINNER = '⡇,⡏,⠏,⠟,⠛,⠻,⠹,⢹,⢸,⣸,⣰,⣴,⣤,⣦,⣆,⣇'.split(',')
+
+    def __init__(self, stream=sys.stdout):
+        self._stream = stream
+
+    def clear(self):
+        self._stream.write(Cli.CURSOR_BACK)
+        self._stream.write(Cli.CLEAR_LINE)
+
+    def _render_frame(self):
+        self.clear()
+
+    def spin(self):
+        self._stream.write(Cli.CURSOR_HIDE)
+        idx = 0
+        for _ in range(10000):
+            self.clear()
+            self._stream.write(Cli.SPINNER[idx])
+            self._stream.write(" hello?")
+            time.sleep(0.1)
+
+            idx += 1
+            if idx == len(Cli.SPINNER):
+                idx = 0
+
+
+def cursor_hide(stream=sys.stdout):
+    stream.write()
+    stream.flush()
+
+
+def cursor_show(stream=sys.stdout):
+    stream.write()
+    stream.flush()
+
+
 def main():
     args = parse_args()
+    cli = Cli()
+    cli.spin()
     measure(args)
 
 
