@@ -114,17 +114,26 @@ def measure(args):
 
     for w in range(args.warmup):
         run_perf(args.event, args.command, tmpfile)
+    
     # first run to determine how long it takes
     time_before = time.time()
     measures = run_perf(args.event, args.command, tmpfile)
     measured_runtime = time.time() - time_before
-    print(type(measured_runtime))
 
     num_runs = clamp(int(args.total_seconds / measured_runtime),
                      args.min_runs - 1,  # we already did a run
                      args.max_runs)
-    print(num_runs)
+    if (args.runs):
+        num_runs = args.runs
+
+    BOLD = '\033[1m'
+    ENDC = '\033[0m'
+    CYAN = '\033[96m'
+
     for r in range(num_runs):
+        t_estimate = (time.time() - time_before) / (r+1)
+        t_remaining = t_estimate * (num_runs - r)
+        print(f"{r+1:4}/{num_runs} ETA {eta(t_remaining)}, num_runs-r={num_runs - r})")
         integrate_measures(measures,
                            run_perf(args.event, args.command, tmpfile))
 
