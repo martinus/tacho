@@ -55,7 +55,7 @@ class Measurement:
     unit: str = "count"
 
 
-def parse_perf_stat_csv(text: str, sep=',') -> map:
+def parse_perf_stat_csv(text: str, sep=',') -> list[Measurement]:
     """
     Parses 'perf stat -x' output.
     According to "man perf stat", the fileds are:
@@ -115,9 +115,10 @@ def measure(args):
     for w in range(args.warmup):
         run_perf(args.event, args.command, tmpfile)
     # first run to determine how long it takes
-    time_before = time()
+    time_before = time.time()
     measures = run_perf(args.event, args.command, tmpfile)
-    measured_runtime = time() - time_before
+    measured_runtime = time.time() - time_before
+    print(type(measured_runtime))
 
     num_runs = clamp(int(args.total_seconds / measured_runtime),
                      args.min_runs - 1,  # we already did a run
@@ -132,12 +133,74 @@ def measure(args):
             f"{statistics.mean(m.values)} +- {statistics.stdev(m.values)} {m.unit} {m.name}")
 
 
+class BrailleGrayCodeSpinner:
+    """
+    A mesmerizing spinner based on braille gray code pattern.
+    Also see https://github.com/manrajgrover/py-spinners/blob/master/spinners/spinners.py for plenty of other spinners
+    """
+
+    def __iter__(self):
+        self._idx = 0
+        return self
+
+    def __next__(self) -> str:
+        braille_start = 0x2800
+        count = 0x100
+        gray_code = self._idx ^ (self._idx >> 1)
+        self._idx += 1
+        if (self._idx == count):
+            self._idx = 0
+        return chr(braille_start + gray_code)
+
+
+def eta(seconds: float, pre_num="", post_num="") -> str:
+    """
+    Fancy format of duration into an ETA string:
+    00:09 # just seconds
+    02:03 # seconds + minutes
+    07:02:09 # 7 hours, 2 minutes 9 seconds
+    1 D 17:02  # 1 day, 17 hours, 2 minutes
+    """
+    t: int = round(seconds)
+
+    # see https://en.cppreference.com/w/cpp/chrono/duration
+
+    out: str = ""
+
+    # years
+    if (t >= 31556952):
+        out += f"{pre_num}{t // 31556952}{post_num}Y "
+        t %= 31556952
+
+    # months
+    if (len(out) != 0 or t >= 2629746):
+        out += f"{pre_num}{t // 2629746}{post_num}M "
+        t %= 2629746
+
+    # days
+    if (len(out) != 0 or t >= 86400):
+        out += f"{pre_num}{t // 86400}{post_num}D "
+        t %= 86400
+
+    # hours
+    if (len(out) != 0 or t >= 3600):
+        out += f"{pre_num}{t // 3600:02}{post_num}:"
+        t %= 3600
+
+    # minutes
+    out += f"{pre_num}{t // 60:02}{post_num}:"
+    t %= 60
+
+    # seconds
+    out += f"{pre_num}{t:02}{post_num}"
+    return out
+
+
 class Cli:
     CLEAR_LINE = "\033[K"
     CURSOR_BACK = "\r"
     CURSOR_HIDE = "\033[?25l"
     CURSOR_SHOW = "\033[?25h"
-    SPINNER = '⡇,⡏,⠏,⠟,⠛,⠻,⠹,⢹,⢸,⣸,⣰,⣴,⣤,⣦,⣆,⣇'.split(',')
 
     def __init__(self, stream=sys.stdout):
         self._stream = stream
@@ -150,17 +213,15 @@ class Cli:
         self.clear()
 
     def spin(self):
+        spinner = BrailleGrayCodeSpinner()
+        it = iter(spinner)
+
         self._stream.write(Cli.CURSOR_HIDE)
-        idx = 0
         for _ in range(10000):
             self.clear()
-            self._stream.write(Cli.SPINNER[idx])
+            self._stream.write(next(it))
             self._stream.write(" hello?")
-            time.sleep(0.1)
-
-            idx += 1
-            if idx == len(Cli.SPINNER):
-                idx = 0
+            time.sleep(0.0125)
 
 
 def cursor_hide(stream=sys.stdout):
@@ -175,10 +236,11 @@ def cursor_show(stream=sys.stdout):
 
 def main():
     args = parse_args()
-    cli = Cli()
-    cli.spin()
+    # cli = Cli()
+    # cli.spin()
     measure(args)
 
 
 if __name__ == '__main__':
+    time
     main()

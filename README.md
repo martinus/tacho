@@ -17,3 +17,11 @@ I'm a python noob, some things that I shouldn't forget:
 
 * `poetry run tacho`
 * `poetry run pytest`
+
+
+
+# Inspirations
+
+* https://github.com/wasi-master/fastero
+* https://github.com/sharkdp/hyperfine
+* 
