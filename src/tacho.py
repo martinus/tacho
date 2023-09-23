@@ -16,9 +16,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from typing import Any, TextIO
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
 
     runs = parser.add_argument_group("number of runs")
@@ -55,7 +56,7 @@ class Measurement:
     unit: str = "count"
 
 
-def parse_perf_stat_csv(text: str, sep=',') -> list[Measurement]:
+def parse_perf_stat_csv(text: str, sep: str = ',') -> list[Measurement]:
     """
     Parses 'perf stat -x' output.
     According to "man perf stat", the fileds are:
@@ -83,7 +84,7 @@ def parse_perf_stat_csv(text: str, sep=',') -> list[Measurement]:
     return measurements
 
 
-def run_perf(events: str, command: list[str], tmpfile) -> list[Measurement]:
+def run_perf(events: str, command: list[str], tmpfile: Any) -> list[Measurement]:
     """
     Runs 'perf stat' once and gathers measurement data, returns a list of measurements
     """
@@ -100,29 +101,30 @@ def run_perf(events: str, command: list[str], tmpfile) -> list[Measurement]:
     return parse_perf_stat_csv(tmpfile.read())
 
 
-def integrate_measures(totals: list[Measurement], new_run: list[Measurement]):
+def integrate_measures(totals: list[Measurement], new_run: list[Measurement]) -> None:
     for t, n in zip(totals, new_run):
         t.values += n.values
 
 
-def clamp(value, lo, hi):
+def clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(value, hi))
 
 
-def measure(args):
+def measure(args: argparse.Namespace) -> None:
     tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
+    print(type(tmpfile))
 
     for w in range(args.warmup):
         run_perf(args.event, args.command, tmpfile)
-    
+
     # first run to determine how long it takes
     time_before = time.time()
     measures = run_perf(args.event, args.command, tmpfile)
     measured_runtime = time.time() - time_before
 
-    num_runs = clamp(int(args.total_seconds / measured_runtime),
-                     args.min_runs - 1,  # we already did a run
-                     args.max_runs)
+    num_runs: int = clamp(int(args.total_seconds / measured_runtime),
+                          args.min_runs - 1,  # we already did a run
+                          args.max_runs)
     if (args.runs):
         num_runs = args.runs
 
@@ -148,12 +150,12 @@ class BrailleGrayCodeSpinner:
     Also see https://github.com/manrajgrover/py-spinners/blob/master/spinners/spinners.py for plenty of other spinners
     """
 
-    def __iter__(self):
-        self._idx = 0
+    def __iter__(self) -> 'BrailleGrayCodeSpinner':
+        self._idx: int = 0
         return self
 
     def __next__(self) -> str:
-        braille_start = 0x2800
+        braille_start: int = 0x2800
         count = 0x100
         gray_code = self._idx ^ (self._idx >> 1)
         self._idx += 1
@@ -162,7 +164,7 @@ class BrailleGrayCodeSpinner:
         return chr(braille_start + gray_code)
 
 
-def eta(seconds: float, pre_num="", post_num="") -> str:
+def eta(seconds: float, pre_num: str = "", post_num: str = "") -> str:
     """
     Fancy format of duration into an ETA string:
     00:09 # just seconds
@@ -211,17 +213,17 @@ class Cli:
     CURSOR_HIDE = "\033[?25l"
     CURSOR_SHOW = "\033[?25h"
 
-    def __init__(self, stream=sys.stdout):
+    def __init__(self, stream: TextIO = sys.stdout) -> None:
         self._stream = stream
 
-    def clear(self):
+    def clear(self) -> None:
         self._stream.write(Cli.CURSOR_BACK)
         self._stream.write(Cli.CLEAR_LINE)
 
-    def _render_frame(self):
+    def _render_frame(self) -> None:
         self.clear()
 
-    def spin(self):
+    def spin(self) -> None:
         spinner = BrailleGrayCodeSpinner()
         it = iter(spinner)
 
@@ -233,18 +235,11 @@ class Cli:
             time.sleep(0.0125)
 
 
-def cursor_hide(stream=sys.stdout):
-    stream.write()
-    stream.flush()
-
-
-def cursor_show(stream=sys.stdout):
-    stream.write()
-    stream.flush()
-
-
-def main():
+def main() -> None:
     args = parse_args()
+
+    print(args)
+    print(f"Benchmark: {' '.join(args.command)}")
     # cli = Cli()
     # cli.spin()
     measure(args)
