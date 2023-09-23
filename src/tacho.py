@@ -11,6 +11,7 @@ __version__ = '.'.join(__version_info__)
 
 import argparse
 from dataclasses import dataclass
+import os
 import statistics
 import subprocess
 import sys
@@ -166,58 +167,65 @@ class BrailleGrayCodeSpinner:
 
 def eta(seconds: float, pre_num: str = "", post_num: str = "") -> str:
     """
-    Fancy format of duration into an ETA string:
-    00:09 # just seconds
-    02:03 # seconds + minutes
-    07:02:09 # 7 hours, 2 minutes 9 seconds
-    1 D 17:02  # 1 day, 17 hours, 2 minutes
+    Fancy format of duration into an ETA string
     """
-    t: int = round(seconds)
 
-    # see https://en.cppreference.com/w/cpp/chrono/duration
+    # constants taken from https://en.cppreference.com/w/cpp/chrono/duration
+    t: int = round(seconds)
+    years, t = divmod(t, 31556952)
+    months, t = divmod(t, 2629746)
+    days, t = divmod(t, 86400)
+    hours, t = divmod(t, 3600)
+    minutes, seconds = divmod(t, 60)
 
     out: str = ""
+    if (years > 0):
+        out += f"{pre_num}{years}{post_num}Y "
+    if (len(out) != 0 or months > 0):
+        out += f"{pre_num}{months}{post_num}M "
+    if (len(out) != 0 or days > 0):
+        out += f"{pre_num}{days}{post_num}D "
+    if (len(out) != 0 or hours > 0):
+        out += f"{pre_num}{hours}{post_num}:"
 
-    # years
-    if (t >= 31556952):
-        out += f"{pre_num}{t // 31556952}{post_num}Y "
-        t %= 31556952
-
-    # months
-    if (len(out) != 0 or t >= 2629746):
-        out += f"{pre_num}{t // 2629746}{post_num}M "
-        t %= 2629746
-
-    # days
-    if (len(out) != 0 or t >= 86400):
-        out += f"{pre_num}{t // 86400}{post_num}D "
-        t %= 86400
-
-    # hours
-    if (len(out) != 0 or t >= 3600):
-        out += f"{pre_num}{t // 3600:02}{post_num}:"
-        t %= 3600
-
-    # minutes
-    out += f"{pre_num}{t // 60:02}{post_num}:"
-    t %= 60
-
-    # seconds
-    out += f"{pre_num}{t:02}{post_num}"
+    out += f"{pre_num}{minutes:02}{post_num}:{pre_num}{seconds:02}{post_num}"
     return out
 
 
 class Cli:
-    CLEAR_LINE = "\033[K"
-    CURSOR_BACK = "\r"
-    CURSOR_HIDE = "\033[?25l"
-    CURSOR_SHOW = "\033[?25h"
+    TTY_CARRIAGE_RETURN = "\r"
+    TTY_CLEAR_TO_EOL = "\x1B[K"
+    TTY_INVERSE_ON = "\x1B[7m"
+    TTY_INVERSE_OFF = "\x1B[27m"
+    TTY_NORMAL = "\x1B[0m"
+    TTY_CYAN = "\x1B[0;36m"
+    TTY_YELLOW = "\x1B[1;33m"
+    TTY_WHITE = "\x1B[1;37m"
+    TTY_GREEN = "\x1B[1;32m"
+    TTY_CURSOR_HIDE = "\033[?25l"
+    TTY_CURSOR_SHOW = "\033[?25h"
+
+
+def term_width(fallback: int = 80) -> int:
+    try:
+        (width, _) = os.get_terminal_size()
+    except OSError:
+        width = fallback
+    return width
+
+# ⠏ Initial time measurement       ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ETA 00:00:0
+# Benchmark 1: ls
+#  ⠦ Current estimate: 0.5 ms       ██████████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ETA 00:00:00
+
+
+def progress_bar():
+    ""
 
     def __init__(self, stream: TextIO = sys.stdout) -> None:
         self._stream = stream
 
     def clear(self) -> None:
-        self._stream.write(Cli.CURSOR_BACK)
+        self._stream.write(Cli.TTY_CARRIAGE_RETURN)
         self._stream.write(Cli.CLEAR_LINE)
 
     def _render_frame(self) -> None:
@@ -237,9 +245,8 @@ class Cli:
 
 def main() -> None:
     args = parse_args()
-
-    print(args)
     print(f"Benchmark: {' '.join(args.command)}")
+
     # cli = Cli()
     # cli.spin()
     measure(args)
