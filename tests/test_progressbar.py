@@ -9,11 +9,11 @@ def test_progressbar():
     max = 80*8
     all_pbs = set()
     print("")
-    pb = tacho.ProgressBars.braille4
+    pb = tacho.ProgressBars.box
     print(tacho.Tty.cursor.hide, end="")
     for i in range(0, max+1):
         print(
-            f"{tacho.Tty.util.carriage_return}{pb.render(i/max, 80)} {i}/{max}", end="")
+            f"{tacho.Tty.util.carriage_return}|{pb.render(i/max, 80)}| {i}/{max}", end="")
 
         time.sleep(0.02)
         # assert not pb in all_pbs
