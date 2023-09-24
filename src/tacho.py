@@ -11,6 +11,7 @@ __version__ = '.'.join(__version_info__)
 
 import argparse
 from dataclasses import dataclass
+from enum import Enum, StrEnum, member, unique
 import os
 import statistics
 import subprocess
@@ -192,18 +193,57 @@ def eta(seconds: float, pre_num: str = "", post_num: str = "") -> str:
     return out
 
 
-class Cli:
-    TTY_CARRIAGE_RETURN = "\r"
-    TTY_CLEAR_TO_EOL = "\x1B[K"
-    TTY_INVERSE_ON = "\x1B[7m"
-    TTY_INVERSE_OFF = "\x1B[27m"
-    TTY_NORMAL = "\x1B[0m"
-    TTY_CYAN = "\x1B[0;36m"
-    TTY_YELLOW = "\x1B[1;33m"
-    TTY_WHITE = "\x1B[1;37m"
-    TTY_GREEN = "\x1B[1;32m"
-    TTY_CURSOR_HIDE = "\033[?25l"
-    TTY_CURSOR_SHOW = "\033[?25h"
+class Tty:
+    def my_code(a: int, b: int) -> str:
+        return f"\x1B[{a};{b}m"
+
+    def fg(num: int) -> str:
+        return Tty.my_code(0, 30+num)
+
+    def bg(num: int) -> str:
+        return Tty.my_code(0, 40+num)
+
+    def fg_bright(num: int) -> str:
+        return Tty.my_code(0, 90+num)
+
+    def bg_bright(num: int) -> str:
+        return Tty.my_code(1, 40+num)
+
+
+class Tty:
+    @unique
+    class fg(StrEnum):
+        black = Tty.fg(0)
+        red = Tty.fg(1)
+        green = Tty.fg(2)
+        yellow = Tty.fg(3)
+        blue = Tty.fg(4)
+        magenta = Tty.fg(5)
+        cyan = Tty.fg(6)
+        white = Tty.fg(7)
+
+    @unique
+    class bg(StrEnum):
+        black = Tty.bg(0)
+        red = Tty.bg(1)
+        green = Tty.bg(2)
+        yellow = Tty.bg(3)
+        blue = Tty.bg(4)
+        magenta = Tty.bg(5)
+        cyan = Tty.bg(6)
+        white = Tty.bg(7)
+
+    @unique
+    class util(StrEnum):
+        reset = "\x1B[0m"
+        bold = "\x1B[1m"
+        carriage_return = "\r"
+        clear_to_eol = "\x1B[K"
+
+    @unique
+    class cursor(StrEnum):
+        hide = "\033[?25l"
+        show = "\033[?25h"
 
 
 def term_width(fallback: int = 80) -> int:
@@ -214,31 +254,82 @@ def term_width(fallback: int = 80) -> int:
     return width
 
 
-def progress_bar(progress_01: float, width: int = 80) -> str:
-    char_full: str = '█'
-    subticks_l: list[str] = " ,▏,▎,▍,▌,▋,▊,▉".split(',')
-    subticks_r: list[str] = "█,🮋,🮊,🮉,▐,🮈,🮇,▕".split(',')
+class ProgressBar:
+    def __init__(self,
+                 left_prefix: str = Tty.fg.yellow,
+                 left_progress: str = "╸,━".split(','),
+                 left_fill: str = "━",
+                 right_prefix: str = Tty.fg.blue,
+                 right_progress: str = "─,╶".split(','),
+                 right_fill: str = "─",
+                 finished_prefix: str = Tty.fg.green,
+                 postfix: str = Tty.util.reset):
+        self._left_prefix = left_prefix
+        self._left_progress = left_progress
+        self._left_fill = left_fill
+        self._right_prefix = right_prefix
+        self._right_progress = right_progress
+        self._right_fill = right_fill
+        self._finished_prefix = finished_prefix
+        self._postfix = postfix
 
-    if (progress_01 <= 0):
-        progress_01 = 0
+    def _calc_num_full_and_progress_idx(self, progress_01: float, width: int, num_progress: int):
+        ticks: int = int(round(progress_01 * (width*num_progress)))
+        return divmod(ticks, num_progress)
 
-    if (progress_01 >= 1.0):
-        return char_full * width
+    def render(self, progress_01: float, width: int = 80) -> str:
+        if (progress_01 <= 0):
+            progress_01 = 0
 
-    ticks: int = int(round(progress_01 * (width*8)))
+        if (progress_01 >= 1.0):
+            return f"{self._finished_prefix}{self._left_fill * width}{self._postfix}"
 
-    num_full, subticks = divmod(ticks, 8)
-    pb: str = char_full * num_full
-    if (len(pb) < width):
-        pb += subticks_l[subticks]
+        num_full, subticks_l = self._calc_num_full_and_progress_idx(
+            progress_01=progress_01, width=width, num_progress=len(self._left_progress))
 
-    if len(pb) < width:
-        pb += subticks_r[subticks]
+        pb_left: str = self._left_fill * num_full
+        if (len(pb_left) < width):
+            pb_left += self._left_progress[subticks_l]
 
-    if len(pb) < width:
-        pb += char_full * (width - len(pb))
+        pb_right: str = ""
+        if len(pb_left) < width:
+            _, subticks_r = self._calc_num_full_and_progress_idx(
+                progress_01=progress_01, width=width, num_progress=len(self._right_progress))
+            pb_right = self._right_progress[subticks_r]
 
-    return pb
+        total_length = len(pb_left) + len(pb_right)
+        if total_length < width:
+            pb_right += self._right_fill * (width - total_length)
+
+        return f"{self._left_prefix}{pb_left}{self._right_prefix}{pb_right}{self._postfix}"
+
+
+class ProgressBars:
+    standard = ProgressBar()
+
+    no_color = ProgressBar(
+        left_prefix="",
+        right_prefix="",
+        postfix="",
+        finished_prefix="")
+
+    box = ProgressBar(
+        left_progress=" ,▏,▎,▍,▌,▋,▊,▉".split(','),
+        left_fill="█",
+        right_progress=["·"],
+        right_fill="·")
+
+    braille3 = ProgressBar(
+        left_progress=" ,⠄,⠆,⠇,⠧,⠷,⠿".split(','),
+        left_fill="⠿",
+        right_progress="⠒,⠒,⠒,⠐,⠐,⠐".split(','),
+        right_fill="⠒")
+
+    braille4 = ProgressBar(
+        left_progress=" ,⡀,⡄,⡆,⡇,⣇,⣧,⣷,⣿".split(','),
+        left_fill="⣿",
+        right_progress="⠶,⠶,⠶,⠶,⠰,⠰,⠰,⠰".split(','),
+        right_fill="⠶")
 
 
 #
@@ -246,7 +337,7 @@ def progress_bar(progress_01: float, width: int = 80) -> str:
 #        self._stream = stream
 #
 #    def clear(self) -> None:
-#        self._stream.write(Cli.TTY_CARRIAGE_RETURN)
+#        self._stream.write(tty.util.carriage_return)
 #        self._stream.write(Cli.CLEAR_LINE)
 #
 #    def _render_frame(self) -> None:
@@ -268,8 +359,6 @@ def main() -> None:
     args = parse_args()
     print(f"Benchmark: {' '.join(args.command)}")
 
-    # cli = Cli()
-    # cli.spin()
     measure(args)
 
 
