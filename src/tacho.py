@@ -213,35 +213,56 @@ def term_width(fallback: int = 80) -> int:
         width = fallback
     return width
 
-# ⠏ Initial time measurement       ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ETA 00:00:0
-# Benchmark 1: ls
-#  ⠦ Current estimate: 0.5 ms       ██████████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ETA 00:00:00
+
+def progress_bar(progress_01: float, width: int = 80) -> str:
+    char_full: str = '█'
+    subticks_l: list[str] = " ,▏,▎,▍,▌,▋,▊,▉".split(',')
+    subticks_r: list[str] = "█,🮋,🮊,🮉,▐,🮈,🮇,▕".split(',')
+
+    if (progress_01 <= 0):
+        progress_01 = 0
+
+    if (progress_01 >= 1.0):
+        return char_full * width
+
+    ticks: int = int(round(progress_01 * (width*8)))
+
+    num_full, subticks = divmod(ticks, 8)
+    pb: str = char_full * num_full
+    if (len(pb) < width):
+        pb += subticks_l[subticks]
+
+    if len(pb) < width:
+        pb += subticks_r[subticks]
+
+    if len(pb) < width:
+        pb += char_full * (width - len(pb))
+
+    return pb
 
 
-def progress_bar():
-    ""
-
-    def __init__(self, stream: TextIO = sys.stdout) -> None:
-        self._stream = stream
-
-    def clear(self) -> None:
-        self._stream.write(Cli.TTY_CARRIAGE_RETURN)
-        self._stream.write(Cli.CLEAR_LINE)
-
-    def _render_frame(self) -> None:
-        self.clear()
-
-    def spin(self) -> None:
-        spinner = BrailleGrayCodeSpinner()
-        it = iter(spinner)
-
-        self._stream.write(Cli.CURSOR_HIDE)
-        for _ in range(10000):
-            self.clear()
-            self._stream.write(next(it))
-            self._stream.write(" hello?")
-            time.sleep(0.0125)
-
+#
+#    def __init__(self, stream: TextIO = sys.stdout) -> None:
+#        self._stream = stream
+#
+#    def clear(self) -> None:
+#        self._stream.write(Cli.TTY_CARRIAGE_RETURN)
+#        self._stream.write(Cli.CLEAR_LINE)
+#
+#    def _render_frame(self) -> None:
+#        self.clear()
+#
+#    def spin(self) -> None:
+#        spinner = BrailleGrayCodeSpinner()
+#        it = iter(spinner)
+#
+#        self._stream.write(Cli.CURSOR_HIDE)
+#        for _ in range(10000):
+#            self.clear()
+#            self._stream.write(next(it))
+#            self._stream.write(" hello?")
+#            time.sleep(0.0125)
+#
 
 def main() -> None:
     args = parse_args()
@@ -253,5 +274,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    time
+    progress_bar(0.7312)
     main()
