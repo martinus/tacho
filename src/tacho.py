@@ -114,14 +114,26 @@ def clamp(value: int, lo: int, hi: int) -> int:
 
 def measure(args: argparse.Namespace) -> None:
     tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
-    print(type(tmpfile))
+
+    pb: ProgressBar = ProgressBars.box
+    print(Tty.cursor.hide, end="")
+
+    total_runs = args.warmup
+    width = 120
 
     for w in range(args.warmup):
+        print(f"{Tty.util.carriage_return}|{pb.render(w/args.warmup, width)}| {w+1}/{args.warmup} warmup", end="")
         run_perf(args.event, args.command, tmpfile)
+    if (args.warmup > 0):
+        print(
+            f"{Tty.util.carriage_return}|{pb.render(1.0, width)}| {args.warmup}/{args.warmup} warmup")
 
     # first run to determine how long it takes
     time_before = time.time()
+    print(f"{Tty.util.carriage_return}|{pb.render(0.0, width)}| Initial run...", end="")
+
     measures = run_perf(args.event, args.command, tmpfile)
+
     measured_runtime = time.time() - time_before
 
     num_runs: int = clamp(int(args.total_seconds / measured_runtime),
@@ -130,17 +142,14 @@ def measure(args: argparse.Namespace) -> None:
     if (args.runs):
         num_runs = args.runs
 
-    BOLD = '\033[1m'
-    ENDC = '\033[0m'
-    CYAN = '\033[96m'
-
     for r in range(num_runs):
+        print(f"{Tty.util.carriage_return}{Tty.util.clear_to_eol}|{pb.render((r+1)/(num_runs+1), width)}| Measuring", end="")
         t_estimate = (time.time() - time_before) / (r+1)
         t_remaining = t_estimate * (num_runs - r)
-        print(f"{r+1:4}/{num_runs} ETA {eta(t_remaining)}, num_runs-r={num_runs - r})")
         integrate_measures(measures,
                            run_perf(args.event, args.command, tmpfile))
 
+    print(f"{Tty.util.carriage_return}|{pb.render(1.0, width)}| {r+2}/{num_runs+1} Measuring done!")
     for m in measures:
         print(
             f"{statistics.mean(m.values)} +- {statistics.stdev(m.values)} {m.unit} {m.name}")
@@ -363,5 +372,4 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    progress_bar(0.7312)
     main()
