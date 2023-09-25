@@ -115,7 +115,7 @@ def clamp(value: int, lo: int, hi: int) -> int:
 def measure(args: argparse.Namespace) -> None:
     tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
 
-    pb: ProgressBar = ProgressBars.box
+    pb: ProgressBar = ProgressBars.standard
     print(Tty.cursor.hide, end="")
 
     total_runs = args.warmup
@@ -126,11 +126,11 @@ def measure(args: argparse.Namespace) -> None:
         run_perf(args.event, args.command, tmpfile)
     if (args.warmup > 0):
         print(
-            f"{Tty.util.carriage_return}|{pb.render(1.0, width)}| {args.warmup}/{args.warmup} warmup")
+            f"{Tty.util.carriage_return}{pb.render(1.0, width)} {args.warmup}/{args.warmup} warmup")
 
     # first run to determine how long it takes
     time_before = time.time()
-    print(f"{Tty.util.carriage_return}|{pb.render(0.0, width)}| Initial run...", end="")
+    print(f"{Tty.util.carriage_return}{pb.render(0.0, width)} Initial run...", end="")
 
     measures = run_perf(args.event, args.command, tmpfile)
 
@@ -143,13 +143,13 @@ def measure(args: argparse.Namespace) -> None:
         num_runs = args.runs
 
     for r in range(num_runs):
-        print(f"{Tty.util.carriage_return}{Tty.util.clear_to_eol}|{pb.render((r+1)/(num_runs+1), width)}| Measuring", end="")
+        print(f"{Tty.util.carriage_return}{Tty.util.clear_to_eol}{pb.render((r+1)/(num_runs+1), width)} Measuring", end="")
         t_estimate = (time.time() - time_before) / (r+1)
         t_remaining = t_estimate * (num_runs - r)
         integrate_measures(measures,
                            run_perf(args.event, args.command, tmpfile))
 
-    print(f"{Tty.util.carriage_return}|{pb.render(1.0, width)}| {r+2}/{num_runs+1} Measuring done!")
+    print(f"{Tty.util.carriage_return}{pb.render(1.0, width)} {r+2}/{num_runs+1} Measuring done!")
     for m in measures:
         print(
             f"{statistics.mean(m.values)} +- {statistics.stdev(m.values)} {m.unit} {m.name}")
