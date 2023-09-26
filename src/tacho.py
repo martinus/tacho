@@ -116,21 +116,21 @@ def measure(args: argparse.Namespace) -> None:
     tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
 
     pb: ProgressBar = ProgressBars.standard
-    print(Tty.cursor.hide, end="")
+    print(Tty.cursor_hide, end="")
 
     total_runs = args.warmup
     width = 120
 
     for w in range(args.warmup):
-        print(f"{Tty.util.carriage_return}|{pb.render(w/args.warmup, width)}| {w+1}/{args.warmup} warmup", end="")
+        print(f"{Tty.carriage_return}|{pb.render(w/args.warmup, width)}| {w+1}/{args.warmup} warmup", end="")
         run_perf(args.event, args.command, tmpfile)
     if (args.warmup > 0):
         print(
-            f"{Tty.util.carriage_return}{pb.render(1.0, width)} {args.warmup}/{args.warmup} warmup")
+            f"{Tty.carriage_return}{pb.render(1.0, width)} {args.warmup}/{args.warmup} warmup")
 
     # first run to determine how long it takes
     time_before = time.time()
-    print(f"{Tty.util.carriage_return}{pb.render(0.0, width)} Initial run...", end="")
+    print(f"{Tty.carriage_return}{pb.render(0.0, width)} Initial run...", end="")
 
     measures = run_perf(args.event, args.command, tmpfile)
 
@@ -143,13 +143,13 @@ def measure(args: argparse.Namespace) -> None:
         num_runs = args.runs
 
     for r in range(num_runs):
-        print(f"{Tty.util.carriage_return}{Tty.util.clear_to_eol}{pb.render((r+1)/(num_runs+1), width)} Measuring", end="")
+        print(f"{Tty.carriage_return}{Tty.clear_to_eol}{pb.render((r+1)/(num_runs+1), width)} Measuring", end="")
         t_estimate = (time.time() - time_before) / (r+1)
         t_remaining = t_estimate * (num_runs - r)
         integrate_measures(measures,
                            run_perf(args.event, args.command, tmpfile))
 
-    print(f"{Tty.util.carriage_return}{pb.render(1.0, width)} {r+2}/{num_runs+1} Measuring done!")
+    print(f"{Tty.carriage_return}{pb.render(1.0, width)} {r+2}/{num_runs+1} Measuring done!")
     for m in measures:
         print(
             f"{statistics.mean(m.values)} +- {statistics.stdev(m.values)} {m.unit} {m.name}")
@@ -202,57 +202,71 @@ def eta(seconds: float, pre_num: str = "", post_num: str = "") -> str:
     return out
 
 
-class Tty:
-    def my_code(a: int, b: int) -> str:
-        return f"\x1B[{a};{b}m"
-
-    def fg(num: int) -> str:
-        return Tty.my_code(0, 30+num)
-
-    def bg(num: int) -> str:
-        return Tty.my_code(0, 40+num)
-
-    def fg_bright(num: int) -> str:
-        return Tty.my_code(0, 90+num)
-
-    def bg_bright(num: int) -> str:
-        return Tty.my_code(1, 40+num)
+def esc_code(a: int, b: int) -> str:
+    return f"\x1B[{a};{b}m"
 
 
-class Tty:
-    @unique
-    class fg(StrEnum):
-        black = Tty.fg(0)
-        red = Tty.fg(1)
-        green = Tty.fg(2)
-        yellow = Tty.fg(3)
-        blue = Tty.fg(4)
-        magenta = Tty.fg(5)
-        cyan = Tty.fg(6)
-        white = Tty.fg(7)
+def fg(num: int) -> str:
+    return my_code(0, 30+num)
 
-    @unique
-    class bg(StrEnum):
-        black = Tty.bg(0)
-        red = Tty.bg(1)
-        green = Tty.bg(2)
-        yellow = Tty.bg(3)
-        blue = Tty.bg(4)
-        magenta = Tty.bg(5)
-        cyan = Tty.bg(6)
-        white = Tty.bg(7)
 
-    @unique
-    class util(StrEnum):
-        reset = "\x1B[0m"
-        bold = "\x1B[1m"
-        carriage_return = "\r"
-        clear_to_eol = "\x1B[K"
+def bg(num: int) -> str:
+    return my_code(0, 40+num)
 
-    @unique
-    class cursor(StrEnum):
-        hide = "\033[?25l"
-        show = "\033[?25h"
+
+def fg_bright(num: int) -> str:
+    return my_code(0, 90+num)
+
+
+def bg_bright(num: int) -> str:
+    return my_code(1, 40+num)
+
+
+@unique
+class Tty(StrEnum):
+    fg_bold_black = "\x1B[1;30m"
+    fg_bold_red = "\x1B[1;31m"
+    fg_bold_green = "\x1B[1;32m"
+    fg_bold_yellow = "\x1B[1;33m"
+    fg_bold_blue = "\x1B[1;34m"
+    fg_bold_magenta = "\x1B[1;35m"
+    fg_bold_cyan = "\x1B[1;36m"
+    fg_bold_white = "\x1B[1;37m"
+
+    fg_normal_black = "\x1B[0;30m"
+    fg_normal_red = "\x1B[0;31m"
+    fg_normal_green = "\x1B[0;32m"
+    fg_normal_yellow = "\x1B[0;33m"
+    fg_normal_blue = "\x1B[0;34m"
+    fg_normal_magenta = "\x1B[0;35m"
+    fg_normal_cyan = "\x1B[0;36m"
+    fg_normal_white = "\x1B[0;37m"
+
+    fg_black = "\x1B[30m"
+    fg_red = "\x1B[31m"
+    fg_green = "\x1B[32m"
+    fg_yellow = "\x1B[33m"
+    fg_blue = "\x1B[34m"
+    fg_magenta = "\x1B[35m"
+    fg_cyan = "\x1B[36m"
+    fg_white = "\x1B[37m"
+
+    bg_black = "\x1B[40m"
+    bg_red = "\x1B[41m"
+    bg_green = "\x1B[42m"
+    bg_yellow = "\x1B[43m"
+    bg_blue = "\x1B[44m"
+    bg_magenta = "\x1B[45m"
+    bg_cyan = "\x1B[46m"
+    bg_white = "\x1B[47m"
+
+    reset = "\x1B[0m"
+    bold = "\x1B[1m"
+    carriage_return = "\r"
+    clear_to_eol = "\x1B[K"
+
+    cursor_hide = "\033[?25l"
+    cursor_show = "\033[?25h"
 
 
 def term_width(fallback: int = 80) -> int:
@@ -265,14 +279,14 @@ def term_width(fallback: int = 80) -> int:
 
 class ProgressBar:
     def __init__(self,
-                 left_prefix: str = Tty.fg.yellow,
+                 left_prefix: str = Tty.fg_bold_yellow,
                  left_progress: str = "╸,━".split(','),
                  left_fill: str = "━",
-                 right_prefix: str = Tty.fg.blue,
+                 right_prefix: str = Tty.fg_normal_blue,
                  right_progress: str = "─,╶".split(','),
                  right_fill: str = "─",
-                 finished_prefix: str = Tty.fg.green,
-                 postfix: str = Tty.util.reset):
+                 finished_prefix: str = Tty.fg_bold_green,
+                 postfix: str = Tty.reset):
         self._left_prefix = left_prefix
         self._left_progress = left_progress
         self._left_fill = left_fill
