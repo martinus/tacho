@@ -179,6 +179,7 @@ class Tty(StrEnum):
     bg_cyan = "\x1B[46m"
     bg_white = "\x1B[47m"
 
+    # see https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_(Select_Graphic_Rendition)_parameters
     reset = "\x1B[0m"
     bold = "\x1B[1m"
     faint = "\x1B[2m"
@@ -186,6 +187,7 @@ class Tty(StrEnum):
     underline = "\x1B[4m"
     blink_slow = "\x1B[5m"
     blink_fast = "\x1B[6m"
+    invert = "\x1B[7m"
     carriage_return = "\r"
     clear_to_eol = "\x1B[K"
 
@@ -217,8 +219,22 @@ def print_stat(values: list[Measurement], unit: str, name: str) -> None:
     mean: float = statistics.mean(values)
     stdev = statistics.stdev(values)
     prefix, power = metric_prefix(mean)
+
+    relative_standard_deviation = 0.0
+    if mean > 0:
+        relative_standard_deviation = 100.0 * stdev / mean
+
+    if relative_standard_deviation >= 15:
+        deviation_color = Tty.fg_bold_red
+    elif relative_standard_deviation >= 10:
+        deviation_color = Tty.fg_red
+    elif relative_standard_deviation >= 5:
+        deviation_color = Tty.fg_yellow
+    else:
+        deviation_color = Tty.fg_green
+
     print(
-        f"{Tty.fg_bold_green}{mean/ power:10.3f} {prefix + unit:2}{Tty.reset} ± {Tty.fg_green}{stdev/ power:7.2f} {prefix + unit:2}{Tty.reset} {Tty.bold}{name}{Tty.reset}"
+        f"{Tty.fg_bold_green}{mean/ power:10.2f}{Tty.reset} {Tty.fg_green}{prefix + unit:2}{Tty.reset} ± {deviation_color}{relative_standard_deviation:4.1f}%{Tty.reset} {Tty.bold}{name}{Tty.reset}"
     )
 
 
@@ -270,9 +286,7 @@ def measure(args: argparse.Namespace) -> None:
     # print(f"{Tty.carriage_return}{Tty.clear_to_eol}{pb.render(1.0, width)} {r+2}/{num_runs+1} Measuring done!")
     print(f"{Tty.carriage_return}{Tty.clear_to_eol}", end="")
 
-    print(
-        f"\n  {Tty.underline}    mean          σ      event type           {Tty.reset}"
-    )
+    print(f"\n  {Tty.underline}    mean      %RSD  event type           {Tty.reset}")
     for m in measures:
         print_stat(m.values, m.unit, m.name)
 
@@ -447,7 +461,7 @@ class ProgressBars:
 
 def main() -> None:
     args = parse_args()
-    print(f"Benchmark: {' '.join(args.command)}")
+    print(f"Benchmark: {Tty.invert}{' '.join(args.command)}{Tty.reset}")
 
     measure(args)
 
