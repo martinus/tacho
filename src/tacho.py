@@ -253,10 +253,6 @@ def measure(args: argparse.Namespace) -> None:
             end="",
         )
         run_perf(args.event, args.command, tmpfile)
-    if args.warmup > 0:
-        print(
-            f"{Tty.carriage_return}{pb.render(1.0, width)} {args.warmup}/{args.warmup} warmup"
-        )
 
     # first run to determine how long it takes
     time_before = time.time()
