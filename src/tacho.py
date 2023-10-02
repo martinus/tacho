@@ -74,7 +74,6 @@ def parse_args() -> argparse.Namespace:
         "-e",
         "--event",
         type=str,
-        default="duration_time,context-switches,cpu-migrations,page-faults,cycles,branches,branch-misses,instructions",
         help='The performance monitoring unit (PMU) to select. This argument is directly passed to "perf stat". See "perf list" for a list of all events. (default=%(default)s)',
     )
 
@@ -112,6 +111,9 @@ def parse_perf_stat_csv(text: str, sep: str = ",") -> list[Measurement]:
         if m.unit == "ns":
             m.unit = "s"
             m.values[0] /= 1e9
+        elif m.unit == "msec":
+            m.unit = "s"
+            m.values[0] /= 1e3
         measurements.append(m)
     return measurements
 
@@ -122,7 +124,13 @@ def run_perf(events: str, command: list[str], tmpfile: Any) -> list[Measurement]
     """
     # I use a huge interval time (1 year). That way we get only a single printout,
     # and that printout contains the total runtime.
-    cmd = ["perf", "stat", "-o", tmpfile.name, "-x", ",", "-e", events] + command
+
+    cmd = ["perf", "stat", "-o", tmpfile.name, "-x", ","]
+
+    # perf startup is a lot slower when events are specified, so try to NOT specify it!
+    if events != None:
+        cmd += ["-e", events]
+    cmd += command
 
     # run program, hiding all output so it doesn't interfere with our progress bar output
     tmpfile.truncate(0)
