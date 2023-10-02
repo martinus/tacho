@@ -219,10 +219,13 @@ def metric_prefix(value: float, use_below_1: bool = True) -> Tuple[str, float]:
     return "", 1
 
 
-def print_stat(values: list[Measurement], unit: str, name: str) -> None:
+def format_stat(values: list[Measurement], unit: str, name: str) -> str:
     # calculate factor
     mean: float = statistics.mean(values)
-    stdev = statistics.stdev(values)
+    if len(values) >= 2:
+        stdev = statistics.stdev(values)
+    else:
+        stdev = 0.0
 
     # for count metrics (unit is "") we don't want to go show milis etc. E.g. milli context switches looks weird
     use_below_1 = len(unit) != 0
@@ -245,60 +248,7 @@ def print_stat(values: list[Measurement], unit: str, name: str) -> None:
     #    f"{Tty.fg_bold_green}{mean/ power:10.2f}{Tty.reset} {Tty.fg_green}{prefix + unit:2}{Tty.reset}  ± {deviation_color}{relative_standard_deviation:5.1f} %{Tty.reset}  {Tty.bold}{name}{Tty.reset}"
     # )
 
-    print(
-        f"{Tty.fg_bold_green}{mean/power:10.2f}{Tty.reset} {Tty.fg_green}{prefix+unit:2}{Tty.reset}  ± {deviation_color}{relative_standard_deviation:5.1f} %{Tty.reset}   {min(values)/power:6.2f} … {max(values)/power:6.2f}   {Tty.bold}{name}{Tty.reset}"
-    )
-
-
-def measure(args: argparse.Namespace) -> None:
-    tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
-
-    pb: ProgressBar = ProgressBars.standard
-    print(Tty.cursor_hide, end="")
-
-    total_runs = args.warmup
-    width = 120
-
-    for w in range(args.warmup):
-        print(
-            f"{Tty.carriage_return}|{pb.render(w/args.warmup, width)}| {w+1}/{args.warmup} warmup",
-            end="",
-        )
-        run_perf(args.event, args.command, tmpfile)
-
-    # first run to determine how long it takes
-    time_before = time.time()
-    print(f"{Tty.carriage_return}{pb.render(0.0, width)} Initial run...", end="")
-
-    measures = run_perf(args.event, args.command, tmpfile)
-
-    measured_runtime = time.time() - time_before
-
-    num_runs: int = clamp(
-        int(args.total_seconds / measured_runtime),
-        args.min_runs - 1,  # we already did a run
-        args.max_runs,
-    )
-    if args.runs:
-        num_runs = args.runs
-
-    for r in range(num_runs):
-        print(
-            f"{Tty.carriage_return}{Tty.clear_to_eol}{pb.render((r+1)/(num_runs+1), width)} Measuring",
-            end="",
-        )
-        t_estimate = (time.time() - time_before) / (r + 1)
-        t_remaining = t_estimate * (num_runs - r)
-        integrate_measures(measures, run_perf(args.event, args.command, tmpfile))
-
-    # print(f"{Tty.carriage_return}{Tty.clear_to_eol}{pb.render(1.0, width)} {r+2}/{num_runs+1} Measuring done!")
-    print(f"{Tty.carriage_return}{Tty.clear_to_eol}", end="")
-
-    print(
-        f"\n  {Tty.underline}    mean          %RSD      min      max   event type           {Tty.reset}"
-    )
-    for m in measures:
-        print_stat(m.values, m.unit, m.name)
+    return f"{Tty.fg_bold_green}{mean/power:10.2f}{Tty.reset} {Tty.fg_green}{prefix+unit:2}{Tty.reset}  ± {deviation_color}{relative_standard_deviation:5.1f} %{Tty.reset}   {min(values)/power:6.2f} … {max(values)/power:6.2f}   {Tty.bold}{name}{Tty.reset}"
 
 
 class BrailleGrayCodeSpinner:
@@ -445,6 +395,86 @@ class ProgressBars:
     )
 
 
+def render(
+    measures: list[Measurement],
+    pb: ProgressBar,
+    r: int,
+    num_runs: int,
+    width: int,
+    num_lines_back: int,
+) -> Tuple[str, int]:
+    """
+    Renders statistics, and returns the string and number of lines that were rendered.
+    """
+    out: str = ""
+    if num_lines_back > 0:
+        out += f"\x1B[{num_lines_back}F"
+    out += f"{pb.render((r+1)/(num_runs+1), width)} Measuring{Tty.clear_to_eol}\n"
+
+    out += f"\n\n  {Tty.underline}    mean          %RSD      min      max   event type           {Tty.reset}{Tty.clear_to_eol}\n"
+    for m in measures:
+        out += f"{format_stat(m.values, m.unit, m.name)}{Tty.clear_to_eol}\n"
+
+    return out, len(measures) + 5
+
+
+def measure(args: argparse.Namespace) -> None:
+    tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
+
+    pb: ProgressBar = ProgressBars.standard
+    print(Tty.cursor_hide, end="")
+
+    total_runs = args.warmup
+    width = 120
+
+    for w in range(args.warmup):
+        print(
+            f"{Tty.carriage_return}|{pb.render(w/args.warmup, width)}| {w+1}/{args.warmup} warmup",
+            end="",
+        )
+        run_perf(args.event, args.command, tmpfile)
+
+    # first run to determine how long it takes
+    time_before = time.time()
+    print(f"{Tty.carriage_return}{pb.render(0.0, width)} Initial run...", end="")
+    measures = run_perf(args.event, args.command, tmpfile)
+    measured_runtime = time.time() - time_before
+
+    num_runs: int = clamp(
+        int(args.total_seconds / measured_runtime),
+        args.min_runs - 1,  # we already did a run
+        args.max_runs,
+    )
+    if args.runs:
+        num_runs = args.runs
+
+    # render everything, with stats:
+    num_lines = 0
+    for r in range(num_runs):
+        out, num_lines = render(
+            measures,
+            pb=pb,
+            r=r + 1,
+            num_runs=num_runs + 1,
+            width=width,
+            num_lines_back=num_lines,
+        )
+        print(out)
+        t_estimate = (time.time() - time_before) / (r + 1)
+        t_remaining = t_estimate * (num_runs - r)
+        integrate_measures(measures, run_perf(args.event, args.command, tmpfile))
+
+    out, num_lines = render(
+        measures,
+        pb=pb,
+        r=r + 2,
+        num_runs=num_runs + 1,
+        width=width,
+        num_lines_back=num_lines,
+    )
+    print(out)
+
+
 #
 #    def __init__(self, stream: TextIO = sys.stdout) -> None:
 #        self._stream = stream
@@ -472,7 +502,6 @@ class ProgressBars:
 def main() -> None:
     args = parse_args()
     print(f"Benchmark: {Tty.invert}{' '.join(args.command)}{Tty.reset}")
-
     measure(args)
 
 
