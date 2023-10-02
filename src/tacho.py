@@ -195,22 +195,27 @@ class Tty(StrEnum):
     cursor_show = "\033[?25h"
 
 
-def metric_prefix(value: float) -> Tuple[str, float]:
+def metric_prefix(value: float, use_below_1: bool = True) -> Tuple[str, float]:
     metric = [
         ("T", 10**12),
         ("G", 10**9),
         ("M", 10**6),
         ("k", 10**3),
         ("", 10**0),
-        ("m", 10**-3),
-        ("µ", 10**-6),
-        ("n", 10**-9),
-        ("p", 10**-12),
     ]
+    if use_below_1:
+        metric += [
+            ("m", 10**-3),
+            ("µ", 10**-6),
+            ("n", 10**-9),
+            ("p", 10**-12),
+        ]
+
     for prefix, power in metric:
         v: float = value / power
         if v > 1 and v < 1000:
             return prefix, power
+
     return "", 1
 
 
@@ -218,7 +223,10 @@ def print_stat(values: list[Measurement], unit: str, name: str) -> None:
     # calculate factor
     mean: float = statistics.mean(values)
     stdev = statistics.stdev(values)
-    prefix, power = metric_prefix(mean)
+
+    # for count metrics (unit is "") we don't want to go show milis etc. E.g. milli context switches looks weird
+    use_below_1 = len(unit) != 0
+    prefix, power = metric_prefix(mean, use_below_1=use_below_1)
 
     relative_standard_deviation = 0.0
     if mean > 0:
@@ -233,8 +241,12 @@ def print_stat(values: list[Measurement], unit: str, name: str) -> None:
     else:
         deviation_color = Tty.fg_green
 
+    # print(
+    #    f"{Tty.fg_bold_green}{mean/ power:10.2f}{Tty.reset} {Tty.fg_green}{prefix + unit:2}{Tty.reset}  ± {deviation_color}{relative_standard_deviation:5.1f} %{Tty.reset}  {Tty.bold}{name}{Tty.reset}"
+    # )
+
     print(
-        f"{Tty.fg_bold_green}{mean/ power:10.2f}{Tty.reset} {Tty.fg_green}{prefix + unit:2}{Tty.reset} ± {deviation_color}{relative_standard_deviation:4.1f}%{Tty.reset} {Tty.bold}{name}{Tty.reset}"
+        f"{Tty.fg_bold_green}{mean/power:10.2f}{Tty.reset} {Tty.fg_green}{prefix+unit:2}{Tty.reset}  ± {deviation_color}{relative_standard_deviation:5.1f} %{Tty.reset}   {min(values)/power:6.2f} … {max(values)/power:6.2f}   {Tty.bold}{name}{Tty.reset}"
     )
 
 
@@ -282,7 +294,9 @@ def measure(args: argparse.Namespace) -> None:
     # print(f"{Tty.carriage_return}{Tty.clear_to_eol}{pb.render(1.0, width)} {r+2}/{num_runs+1} Measuring done!")
     print(f"{Tty.carriage_return}{Tty.clear_to_eol}", end="")
 
-    print(f"\n  {Tty.underline}    mean      %RSD  event type           {Tty.reset}")
+    print(
+        f"\n  {Tty.underline}    mean          %RSD      min      max   event type           {Tty.reset}"
+    )
     for m in measures:
         print_stat(m.values, m.unit, m.name)
 
