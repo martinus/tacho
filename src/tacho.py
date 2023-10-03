@@ -105,16 +105,22 @@ def parse_perf_stat_csv(text: str, sep: str = ",") -> list[Measurement]:
             continue
         l = line.split(sep)
 
-        m = Measurement(name=l[2], values=[float(l[0])], unit=l[1])
+        if len(l) > 3 and len(l[0]) > 0 and len(l[2]) > 0:
+            try:
+                m = Measurement(name=l[2], values=[float(l[0])], unit=l[1])
 
-        # we want standard units, so recalculate nanoseconds
-        if m.unit == "ns":
-            m.unit = "s"
-            m.values[0] /= 1e9
-        elif m.unit == "msec":
-            m.unit = "s"
-            m.values[0] /= 1e3
-        measurements.append(m)
+                # we want standard units, so recalculate nanoseconds
+                if m.unit == "ns":
+                    m.unit = "s"
+                    m.values[0] /= 1e9
+                elif m.unit == "msec":
+                    m.unit = "s"
+                    m.values[0] /= 1e3
+                measurements.append(m)
+            except ValueError:  #
+                # can happen for e.g. "<not counted>" as l[0]
+                pass
+
     return measurements
 
 
@@ -417,20 +423,19 @@ def render(
     out: str = ""
     if num_lines_back > 0:
         out += f"\x1B[{num_lines_back}F"
-    out += f"{pb.render((r+1)/(num_runs+1), width)} Measuring{Tty.clear_to_eol}\n"
+    out += f"{Tty.carriage_return}|{pb.render((r+1)/(num_runs+1), width)}| Measuring{Tty.clear_to_eol}\n"
 
-    out += f"\n\n  {Tty.underline}    mean          %RSD      min      max   event type           {Tty.reset}{Tty.clear_to_eol}\n"
+    out += f"\n  {Tty.underline}    mean          %RSD      min      max   event type           {Tty.reset}{Tty.clear_to_eol}\n"
     for m in measures:
         out += f"{format_stat(m.values, m.unit, m.name)}{Tty.clear_to_eol}\n"
 
-    return out, len(measures) + 5
+    return out, len(measures) + 3
 
 
 def measure(args: argparse.Namespace) -> None:
     tmpfile = tempfile.NamedTemporaryFile(prefix="tacho_", mode="w+t")
 
     pb: ProgressBar = ProgressBars.standard
-    print(Tty.cursor_hide, end="")
 
     total_runs = args.warmup
     width = 120
@@ -444,7 +449,7 @@ def measure(args: argparse.Namespace) -> None:
 
     # first run to determine how long it takes
     time_before = time.time()
-    print(f"{Tty.carriage_return}{pb.render(0.0, width)} Initial run...", end="")
+    print(f"{Tty.carriage_return}|{pb.render(0.0, width)}| Initial run...", end="")
     measures = run_perf(args.event, args.command, tmpfile)
     measured_runtime = time.time() - time_before
 
@@ -467,7 +472,7 @@ def measure(args: argparse.Namespace) -> None:
             width=width,
             num_lines_back=num_lines,
         )
-        print(out)
+        sys.stdout.write(out)
         t_estimate = (time.time() - time_before) / (r + 1)
         t_remaining = t_estimate * (num_runs - r)
         integrate_measures(measures, run_perf(args.event, args.command, tmpfile))
@@ -480,7 +485,7 @@ def measure(args: argparse.Namespace) -> None:
         width=width,
         num_lines_back=num_lines,
     )
-    print(out)
+    sys.stdout.write(out)
 
 
 #
@@ -509,7 +514,7 @@ def measure(args: argparse.Namespace) -> None:
 
 def main() -> None:
     args = parse_args()
-    print(f"Benchmark: {Tty.invert}{' '.join(args.command)}{Tty.reset}")
+    print(f"{Tty.cursor_hide}Benchmark: {Tty.bold}{' '.join(args.command)}{Tty.reset}\n")
     measure(args)
 
 
