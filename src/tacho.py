@@ -74,6 +74,7 @@ def parse_args() -> argparse.Namespace:
         "-e",
         "--event",
         type=str,
+        default="duration_time,context-switches,cpu-migrations,page-faults,cycles,branches,branch-misses,instructions",
         help='The performance monitoring unit (PMU) to select. This argument is directly passed to "perf stat". See "perf list" for a list of all events. (default=%(default)s)',
     )
 
@@ -423,7 +424,7 @@ def render(
     out: str = ""
     if num_lines_back > 0:
         out += f"\x1B[{num_lines_back}F"
-    out += f"{Tty.carriage_return}|{pb.render((r+1)/(num_runs+1), width)}| Measuring{Tty.clear_to_eol}\n"
+    out += f"{Tty.carriage_return}|{pb.render((r+1)/(num_runs+1), width)}| Measuring {r+1}/{num_runs+1}{Tty.clear_to_eol}\n"
 
     out += f"\n  {Tty.underline}    mean          %RSD      min      max   event type           {Tty.reset}{Tty.clear_to_eol}\n"
     for m in measures:
@@ -514,8 +515,11 @@ def measure(args: argparse.Namespace) -> None:
 
 def main() -> None:
     args = parse_args()
-    print(f"{Tty.cursor_hide}Benchmark: {Tty.bold}{' '.join(args.command)}{Tty.reset}\n")
+    print(
+        f"{Tty.cursor_hide}Benchmark: {Tty.bold}{' '.join(args.command)}{Tty.reset}\n"
+    )
     measure(args)
+    sys.stdout.write(Tty.cursor_show)
 
 
 if __name__ == "__main__":
