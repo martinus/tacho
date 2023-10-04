@@ -489,30 +489,6 @@ def measure(args: argparse.Namespace) -> None:
     sys.stdout.write(out)
 
 
-#
-#    def __init__(self, stream: TextIO = sys.stdout) -> None:
-#        self._stream = stream
-#
-#    def clear(self) -> None:
-#        self._stream.write(tty.util.carriage_return)
-#        self._stream.write(Cli.CLEAR_LINE)
-#
-#    def _render_frame(self) -> None:
-#        self.clear()
-#
-#    def spin(self) -> None:
-#        spinner = BrailleGrayCodeSpinner()
-#        it = iter(spinner)
-#
-#        self._stream.write(Cli.CURSOR_HIDE)
-#        for _ in range(10000):
-#            self.clear()
-#            self._stream.write(next(it))
-#            self._stream.write(" hello?")
-#            time.sleep(0.0125)
-#
-
-
 def main() -> None:
     args = parse_args()
     print(
