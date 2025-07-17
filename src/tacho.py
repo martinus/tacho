@@ -109,6 +109,8 @@ def parse_perf_stat_csv(text: str, sep: str = ",") -> list[Measurement]:
         if len(l) > 3 and len(l[0]) > 0 and len(l[2]) > 0:
             try:
                 m = Measurement(name=l[2], values=[float(l[0])], unit=l[1])
+                if m.name == "duration_time" and m.unit == "":
+                    m.unit = "ns"
 
                 # we want standard units, so recalculate nanoseconds
                 if m.unit == "ns":
@@ -158,53 +160,53 @@ def clamp(value: int, lo: int, hi: int) -> int:
 
 @unique
 class Tty(StrEnum):
-    fg_bold_black = "\x1B[1;30m"
-    fg_bold_red = "\x1B[1;31m"
-    fg_bold_green = "\x1B[1;32m"
-    fg_bold_yellow = "\x1B[1;33m"
-    fg_bold_blue = "\x1B[1;34m"
-    fg_bold_magenta = "\x1B[1;35m"
-    fg_bold_cyan = "\x1B[1;36m"
-    fg_bold_white = "\x1B[1;37m"
+    fg_bold_black = "\x1b[1;30m"
+    fg_bold_red = "\x1b[1;31m"
+    fg_bold_green = "\x1b[1;32m"
+    fg_bold_yellow = "\x1b[1;33m"
+    fg_bold_blue = "\x1b[1;34m"
+    fg_bold_magenta = "\x1b[1;35m"
+    fg_bold_cyan = "\x1b[1;36m"
+    fg_bold_white = "\x1b[1;37m"
 
-    fg_normal_black = "\x1B[0;30m"
-    fg_normal_red = "\x1B[0;31m"
-    fg_normal_green = "\x1B[0;32m"
-    fg_normal_yellow = "\x1B[0;33m"
-    fg_normal_blue = "\x1B[0;34m"
-    fg_normal_magenta = "\x1B[0;35m"
-    fg_normal_cyan = "\x1B[0;36m"
-    fg_normal_white = "\x1B[0;37m"
+    fg_normal_black = "\x1b[0;30m"
+    fg_normal_red = "\x1b[0;31m"
+    fg_normal_green = "\x1b[0;32m"
+    fg_normal_yellow = "\x1b[0;33m"
+    fg_normal_blue = "\x1b[0;34m"
+    fg_normal_magenta = "\x1b[0;35m"
+    fg_normal_cyan = "\x1b[0;36m"
+    fg_normal_white = "\x1b[0;37m"
 
-    fg_black = "\x1B[30m"
-    fg_red = "\x1B[31m"
-    fg_green = "\x1B[32m"
-    fg_yellow = "\x1B[33m"
-    fg_blue = "\x1B[34m"
-    fg_magenta = "\x1B[35m"
-    fg_cyan = "\x1B[36m"
-    fg_white = "\x1B[37m"
+    fg_black = "\x1b[30m"
+    fg_red = "\x1b[31m"
+    fg_green = "\x1b[32m"
+    fg_yellow = "\x1b[33m"
+    fg_blue = "\x1b[34m"
+    fg_magenta = "\x1b[35m"
+    fg_cyan = "\x1b[36m"
+    fg_white = "\x1b[37m"
 
-    bg_black = "\x1B[40m"
-    bg_red = "\x1B[41m"
-    bg_green = "\x1B[42m"
-    bg_yellow = "\x1B[43m"
-    bg_blue = "\x1B[44m"
-    bg_magenta = "\x1B[45m"
-    bg_cyan = "\x1B[46m"
-    bg_white = "\x1B[47m"
+    bg_black = "\x1b[40m"
+    bg_red = "\x1b[41m"
+    bg_green = "\x1b[42m"
+    bg_yellow = "\x1b[43m"
+    bg_blue = "\x1b[44m"
+    bg_magenta = "\x1b[45m"
+    bg_cyan = "\x1b[46m"
+    bg_white = "\x1b[47m"
 
     # see https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_(Select_Graphic_Rendition)_parameters
-    reset = "\x1B[0m"
-    bold = "\x1B[1m"
-    faint = "\x1B[2m"
-    italic = "\x1B[3m"
-    underline = "\x1B[4m"
-    blink_slow = "\x1B[5m"
-    blink_fast = "\x1B[6m"
-    invert = "\x1B[7m"
+    reset = "\x1b[0m"
+    bold = "\x1b[1m"
+    faint = "\x1b[2m"
+    italic = "\x1b[3m"
+    underline = "\x1b[4m"
+    blink_slow = "\x1b[5m"
+    blink_fast = "\x1b[6m"
+    invert = "\x1b[7m"
     carriage_return = "\r"
-    clear_to_eol = "\x1B[K"
+    clear_to_eol = "\x1b[K"
 
     cursor_hide = "\033[?25l"
     cursor_show = "\033[?25h"
@@ -423,8 +425,15 @@ def render(
     """
     out: str = ""
     if num_lines_back > 0:
-        out += f"\x1B[{num_lines_back}F"
-    out += f"{Tty.carriage_return}|{pb.render((r+1)/(num_runs+1), width)}| Measuring {r+1}/{num_runs+1}{Tty.clear_to_eol}\n"
+        out += f"\x1b[{num_lines_back}F"
+
+    text = f"Measuring {r+1}/{num_runs}"
+    if r == 0:
+        text = "Initial run"
+    elif r >= num_runs:
+        text = f"Done {r+1}/{r+1}"
+
+    out += f"{Tty.carriage_return}|{pb.render((r+1)/(num_runs+1), width)}| {text}{Tty.clear_to_eol}\n"
 
     out += f"\n  {Tty.underline}    mean          %RSD      min      max   event type           {Tty.reset}{Tty.clear_to_eol}\n"
     for m in measures:
@@ -460,7 +469,7 @@ def measure(args: argparse.Namespace) -> None:
         args.max_runs,
     )
     if args.runs:
-        num_runs = args.runs
+        num_runs = args.runs - 1  # we already did a run
 
     # render everything, with stats:
     num_lines = 0
@@ -469,7 +478,7 @@ def measure(args: argparse.Namespace) -> None:
             measures,
             pb=pb,
             r=r + 1,
-            num_runs=num_runs + 1,
+            num_runs=num_runs,
             width=width,
             num_lines_back=num_lines,
         )
@@ -481,8 +490,8 @@ def measure(args: argparse.Namespace) -> None:
     out, num_lines = render(
         measures,
         pb=pb,
-        r=r + 2,
-        num_runs=num_runs + 1,
+        r=r + 1,
+        num_runs=num_runs,
         width=width,
         num_lines_back=num_lines,
     )
